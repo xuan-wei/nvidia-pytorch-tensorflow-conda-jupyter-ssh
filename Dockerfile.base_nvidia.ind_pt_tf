@@ -12,7 +12,7 @@ ARG GID=1000
 # necessary update
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC && \
     apt-get update && apt-get install -y --no-install-recommends \
-    wget ca-certificates git openssh-server sudo vim curl libpam-cracklib && \
+    wget ca-certificates git openssh-server sudo vim curl libpam-cracklib tzdata && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
