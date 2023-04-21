@@ -16,7 +16,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # necessary update
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC && \
     apt-get update && apt-get install -y --no-install-recommends \
-    wget ca-certificates git openssh-server sudo vim curl libpam-cracklib tzdata && \
+    wget ca-certificates git openssh-server sudo vim curl libpam-cracklib tzdata dumb-init && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
@@ -60,19 +60,12 @@ RUN curl -o ~/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest
     conda config --system --set show_channel_urls true && \
     pip config set global.index-url https://pypi.mirrors.ustc.edu.cn/simple
 
-# install ipykernel and jupyter
-RUN conda install ipykernel && \
+# install ipykernel, jupyter, and pytorch
+RUN conda install ipykernel python=3.8 && \
     pip install --no-cache-dir jupyter jupyterlab && \
+    pip install --no-cache-dir torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu116 && \
+    sed -i 's/Python 3 (ipykernel)/base (pytorch-1.12.1)/g' /home/${USER}/.conda/share/jupyter/kernels/python3/kernel.json && \
     conda clean -ya
-
-# install pytorch 
-RUN conda create -n pt python=3.8 ipykernel && \
-    conda clean -ya
-
-SHELL ["/bin/bash", "-c"]
-RUN source activate pt && \
-    python -m ipykernel install --user --name pt --display-name "pytorch-1.12.1" && \
-    pip install --no-cache-dir torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu116
 
 # install tensorflow
 RUN conda create -n tf python=3.8 ipykernel && \
@@ -81,13 +74,15 @@ RUN conda create -n tf python=3.8 ipykernel && \
 SHELL ["/bin/bash", "-c"]
 RUN source activate tf && \
     python -m ipykernel install --user --name tf --display-name "tensorflow-2.7.0" && \
-    pip install --no-cache-dir tensorflow==2.7.0
+    pip install --no-cache-dir protobuf==3.20.3 tensorflow==2.7.0 # protobuf 4.* may cause dependency
 
 # set plugins and kernels for jupyter
-RUN jupyter notebook --generate-config && \
-    pip install --no-cache-dir jupyter_contrib_nbextensions matplotlib jupyter_http_over_ws nbconvert && \
+RUN source activate base && \
+    jupyter notebook --generate-config && \
+    conda install -y jupyter_contrib_nbextensions jupyter_nbextensions_configurator matplotlib jupyter_http_over_ws nbconvert && \
     jupyter contrib nbextension install --user && \
-    jupyter serverextension enable --py jupyter_http_over_ws 
+    jupyter serverextension enable --py jupyter_http_over_ws && \
+    conda clean -ya
 
 # change password at a later stage to re-use previous layers -- this doesn't work -- pam_chauthtok() failed
 # USER root
@@ -101,6 +96,14 @@ RUN tmp="$(python3 -c "from notebook.auth import passwd; print(passwd('$PASSWORD
     echo "c.NotebookApp.terminado_settings = {'shell_command': ['/bin/bash']}">>/home/${USER}/.jupyter/jupyter_notebook_config.py && \
     conda init
 
+
+RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone 
+
 EXPOSE 22 8888 1000 1001 1002
 
-CMD /usr/sbin/sshd -f ${HOME}/.local/my_sshd/sshd_config && bash -ic 'jupyter notebook --notebook-dir=${HOME} --ip 0.0.0.0 --no-browser --allow-root'
+COPY ./entrypoint.sh ${HOME}/entrypoint.sh
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+
+CMD bash ${HOME}/entrypoint.sh
+#CMD /usr/sbin/sshd -f ${HOME}/.local/my_sshd/sshd_config && bash -ic 'jupyter notebook --notebook-dir=${HOME} --ip 0.0.0.0 --no-browser --allow-root'
+#CMD /usr/sbin/sshd -f ${HOME}/.local/my_sshd/sshd_config && bash -ic 'jupyter notebook --notebook-dir=${HOME} --ip 0.0.0.0 --no-browser --allow-root' && code-server --host 0.0.0.0 --port 1000
