@@ -1,6 +1,6 @@
 # Instruction for Dockerfile to create a new image on top of the base image of nvidia/cuda
 # change BASE accordingly
-ARG BASE=nvidia/cuda:11.2.0-cudnn8-devel-ubuntu20.04
+ARG BASE=nvidia/cuda:11.2.2-cudnn8-devel-ubuntu20.04
 FROM $BASE
 
 # change ARG accordingly
@@ -65,6 +65,12 @@ RUN conda install ipykernel python=3.8 && \
     pip install --no-cache-dir jupyter jupyterlab && \
     pip install --no-cache-dir torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu116 && \
     sed -i 's/Python 3 (ipykernel)/base (pytorch-1.12.1)/g' /home/${USER}/.conda/share/jupyter/kernels/python3/kernel.json && \
+    pip install transformers scipy SentencePiece accelerate && \
+    git clone https://github.com/timdettmers/bitsandbytes.git && \
+    cd bitsandbytes && \
+    CUDA_VERSION=116 make cuda11x && \
+    python setup.py install && \
+    rm -r bitsandbytes && \
     conda clean -ya
 
 # install tensorflow
