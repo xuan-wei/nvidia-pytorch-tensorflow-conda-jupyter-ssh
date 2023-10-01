@@ -3,7 +3,12 @@ This is a Dockerfile for an environment that integrates CUDA, Conda, Jupyter, SS
 
 ### Summary
 The key features include:
-- **Flexible environment with Conda**: Using Conda, you can easily maintain different versions of Python and packages. You can also create and register new environments as Jupyter kernels.
+- **Flexible environment with Conda**: Using Conda, you can easily maintain different versions of Python and packages. You can also create and register new environments as Jupyter kernels. For example, when you want to register a new env (python 3.10 + tensorflow 2.11), use the following code 
+```bash
+conda create -n "name_of_env" python=3.10 ipykernel # build new env
+conda activate "name_of_env" # switch to the new env
+python -m ipykernel install --user --name "name_of_env" --display-name "name shown in Jupyter"
+```
 
 - **Easy access with SSH and Jupyter**: SSH and Jupyter are integrated into the environment, allowing you to access it through ports 22 and 8888, respectively.
 
@@ -15,18 +20,21 @@ The key features include:
 
 
 ### How to compile a docker image from Dockerfile
-Suppose you want to compile from `Dockerfile.base_nvidia.pt_as_default`. Navigate to the directory and use the following command:
+Suppose you want to compile from `Dockerfile.combined_pt_tf`. Navigate to the directory and use the following command:
 ``` 
-sudo docker build -t <image_name> -f Dockerfile.base_nvidia.pt_as_default --build-arg PASSWORD=<password> .
+sudo docker build -t <image_name> -f Dockerfile.combined_pt_tf --build-arg PASSWORD=<password> .
 ```
 Replace `<image_name>` and `<password>` with your desired values. Also, feel free to change the variables (USER, UID, GID, TZ) and version of packages (python, TensorFlow, PyTorch, etc.) in the dockerfile.
+
+### Dockerfile.combined vs. Dockerfile.separate
+These two versions exist because for some 
 
 ### Docker-compose.yaml for starting a docker container
 ``` docker
 version: "3"
 
 services:
-  tensorflow:
+  pt-tf:
     container_name: <to_replace> # name
     image: <image_name>
     hostname: Ubuntu
