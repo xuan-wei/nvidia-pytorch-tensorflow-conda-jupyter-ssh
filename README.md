@@ -1,5 +1,5 @@
 # nvidia-pytorch-tensorflow-conda-jupyter-ssh
-This is a Dockerfile for an environment that integrates CUDA, Conda, Jupyter, SSH, PyTorch, TensorFlow (and Code Server).  This dockerfile is mainly designed for creating different environment for different users when you want to share a server with other users.
+This is a Dockerfile for an environment that integrates CUDA, Conda, Jupyter (Notebook and JupyterLab), SSH, PyTorch, TensorFlow (and Code Server).  This dockerfile is mainly designed for creating different environment for different users when you want to share a server with other users.
 
 ### Summary
 The key features include:
@@ -22,12 +22,14 @@ python -m ipykernel install --user --name "name_of_env" --display-name "name sho
 ### How to compile a docker image from Dockerfile
 Suppose you want to compile from `Dockerfile.combined_pt_tf`. Navigate to the directory and use the following command:
 ``` 
-sudo docker build -t <image_name> -f Dockerfile.combined_pt_tf --build-arg PASSWORD=<password> .
+sudo docker build -t <image_name> -f Dockerfile.combined_pt_tf --build-arg USER=<user> --build-arg PASSWORD=<password> --build-arg UID=<UID> --build-arg GID=<GID> .
 ```
-Replace `<image_name>` and `<password>` with your desired values. Also, feel free to change the variables (USER, UID, GID, TZ) and version of packages (python, TensorFlow, PyTorch, etc.) in the dockerfile.
+Replace `<image_name>`, `<user>``, and `<password>` with your desired values. Set `<UID>` and `<GID>` with the uid and gid of your host machine (obtained by running `id` in command line). Also, feel free to change the variables (e.g., TZ) and version of packages (python, TensorFlow, PyTorch, etc.) in the dockerfile.
+
+To enable pip cache, you need to run `export DOCKER_BUILDKIT=1` in the host before building. Or, you can add this before sudo, i.e., `DOCKER_BUILDKIT=1 sudo docker build ...`
 
 ### Dockerfile.combined vs. Dockerfile.separate
-These two versions exist because for some 
+These two versions exist because for some version of of cuda (e.g., `11.2`), we are unable to find compatible versions of Pytorch and Tensorflow. Refer to [Tensorflow](https://www.tensorflow.org/install/source#gpu) and [PyTorch](https://pytorch.org/get-started/previous-versions/).
 
 ### Docker-compose.yaml for starting a docker container
 ``` docker
@@ -39,6 +41,7 @@ services:
     image: <image_name>
     hostname: Ubuntu
     restart: always
+    # tty: true # useful in the debugging stage of Dockerfile
     # privileged: true # this can avoid nvidia-smi error (Failed to initialize NVML: Unknown Error) after calling systemctl daemon-reload. However, this also gives all capabilities to the container. A better way is to diable privileged and mount devices manually (see below).
     init: true # Run an init inside the container that forwards signals and reaps processes. see https://docs.docker.com/compose/compose-file/compose-file-v3/
     pid: "host" # share pid with host to allow container to use nvidia-smi to show the processes ocupying GPUs 

@@ -1,8 +1,10 @@
-# syntax = docker/dockerfile:experimental
+# syntax=docker/dockerfile:1.3.0-labs
+# "syntax=docker/dockerfile:1.3.0-labs" is necessary for creating the pip cache
+
 # Instruction for Dockerfile to create a new image on top of the base image of nvidia/cuda
 # pytorch and tensorflow are installed in different conda envs, i.e., base and tf. This is because Pytorch doesn't have a proper version for cuda 11.2
 
-# change BASE accordingly
+# change BASE accordingly. From https://hub.docker.com/r/nvidia/cuda
 ARG BASE=nvidia/cuda:11.2.2-cudnn8-devel-ubuntu20.04
 FROM $BASE
 
@@ -53,7 +55,7 @@ RUN mkdir -p /home/${USER}/.local/my_sshd && \
 
 # Install miniconda (python)
 # See https://docs.conda.io/projects/miniconda/en/latest/miniconda-other-installer-links.html
-RUN curl -o ~/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+RUN curl -o ~/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-py39_23.5.2-0-Linux-x86_64.sh && \
     chmod +x ~/miniconda.sh && \
     /bin/bash ./miniconda.sh -b -p /home/${USER}/.conda && \
     rm ~/miniconda.sh && \
@@ -61,44 +63,39 @@ RUN curl -o ~/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest
     conda config --system --set auto_update_conda false && \
     conda config --system --set show_channel_urls true && \
     pip config set global.index-url https://pypi.mirrors.ustc.edu.cn/simple && \
-    pip install --no-cache-dir --upgrade pip
+    pip install --upgrade pip
 
 # install ipykernel, jupyter, and pytorch
-RUN conda install python=3.9 && \
-    pip install --no-cache-dir ipykernel && \
-    pip install --no-cache-dir notebook==6.3.0 jupyterlab==3.6.3 && \
-    pip install --no-cache-dir torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu116 && \
+RUN --mount=type=cache,mode=0777,target=/home/${USER}/.cache,uid=${UID},gid=${GID} \
+    pip install ipykernel && \
+    pip install notebook==6.3.0 jupyterlab==3.6.3 && \
+    pip install torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu116 && \
     sed -i 's/Python 3 (ipykernel)/base (pytorch-1.12.1)/g' /home/${USER}/.conda/share/jupyter/kernels/python3/kernel.json && \
-    pip install --no-cache-dir transformers==4.33.2 scipy==1.10.1 SentencePiece==0.1.99 accelerate==0.23.0 && \
+    pip install transformers==4.33.2 scipy==1.10.1 SentencePiece==0.1.99 accelerate==0.23.0 && \
     git clone https://github.com/timdettmers/bitsandbytes.git && \
     cd bitsandbytes && \
     CUDA_VERSION=116 make cuda11x && \
     python setup.py install && \
-    rm -r ../bitsandbytes && \
-    conda clean -ya
+    rm -r ../bitsandbytes
 
 # install tensorflow
 RUN conda create -n tf python=3.9 && \
     conda clean -ya
 
 SHELL ["/bin/bash", "-c"]
-RUN source activate tf && \
-    pip install --no-cache-dir ipykernel && \
+RUN --mount=type=cache,mode=0777,target=/home/${USER}/.cache,uid=${UID},gid=${GID} \
+    source activate tf && \
+    pip install ipykernel && \
     python -m ipykernel install --user --name tf --display-name "tensorflow-2.7.0" && \
-    pip install --no-cache-dir protobuf==3.20.3 tensorflow==2.7.0 # protobuf 4.* may cause dependency
+    pip install protobuf==3.20.3 tensorflow==2.7.0 # protobuf 4.* may cause dependency
 
 # set plugins and kernels for jupyter
-RUN source activate base && \
-    pip install --no-cache-dir jupyter_contrib_nbextensions==0.7.0 jupyter_nbextensions_configurator==0.6.1 matplotlib==3.7.1 jupyter_http_over_ws==0.0.8 nbconvert==7.3.1 traitlets==5.9.0 && \
+RUN --mount=type=cache,mode=0777,target=/home/${USER}/.cache,uid=${UID},gid=${GID} \
+    source activate base && \
+    pip install jupyter_contrib_nbextensions==0.7.0 jupyter_nbextensions_configurator==0.6.1 matplotlib==3.7.1 jupyter_http_over_ws==0.0.8 nbconvert==7.3.1 traitlets==5.9.0 && \
     jupyter notebook --generate-config && \
     jupyter contrib nbextension install --user && \
     jupyter serverextension enable --py jupyter_http_over_ws
-
-# change password at a later stage to re-use previous layers -- this doesn't work -- pam_chauthtok() failed
-# USER root
-# ARG PASSWORD
-# RUN echo "${USER}:${PASSWORD}" | chpasswd
-# USER ${USER}
 
 RUN tmp="$(python3 -c "from notebook.auth import passwd; print(passwd('$PASSWORD'))")" && \
     echo "c.NotebookApp.password='$tmp'">>/home/${USER}/.jupyter/jupyter_notebook_config.py && \
@@ -106,9 +103,9 @@ RUN tmp="$(python3 -c "from notebook.auth import passwd; print(passwd('$PASSWORD
     echo "c.NotebookApp.terminado_settings = {'shell_command': ['/bin/bash']}">>/home/${USER}/.jupyter/jupyter_notebook_config.py && \
     conda init
 
-EXPOSE 22 8888 1000 1001 1002
-
 # RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone  # if you need code server
+
+EXPOSE 22 8888 1000 1001 1002
 
 COPY ./entrypoint.sh ${HOME}/entrypoint.sh
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
