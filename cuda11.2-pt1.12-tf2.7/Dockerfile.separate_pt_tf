@@ -21,7 +21,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # necessary update
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC && \
     apt-get update && apt-get install -y --no-install-recommends \
-    wget ca-certificates git openssh-server sudo vim curl libpam-cracklib tzdata dumb-init && \
+    wget ca-certificates git openssh-server sudo vim curl libpam-cracklib tzdata dumb-init screen && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
@@ -105,9 +105,17 @@ RUN tmp="$(python3 -c "from notebook.auth import passwd; print(passwd('$PASSWORD
 
 # RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone  # if you need code server
 
+# allow utf-8 characters in terminal
+ENV LANG C.UTF-8
+ENV LC_ALL C.UTF-8
+
+# install frequently used packages
+RUN --mount=type=cache,mode=0777,target=/home/${USER}/.cache,uid=${UID},gid=${GID} \
+    pip install pandas scikit-learn tqdm
+
 EXPOSE 22 8888 1000 1001 1002
 
-COPY ./entrypoint.sh ${HOME}/entrypoint.sh
+COPY ./entrypoint.sh ${HOME}/.entrypoint.sh
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
-CMD bash ${HOME}/entrypoint.sh
+CMD bash ${HOME}/.entrypoint.sh
